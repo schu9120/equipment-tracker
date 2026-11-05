@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from '@supabase/supabase-js';
 import {
   Snowflake,
   Plus,
@@ -653,7 +653,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="pt-4 pb-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 print:hidden">
-          <span>Showing {displayedEquipment.length} of {equipment.length} units</span>
+          <span>Showing {displayedEquipment.length} of {equipment.length} units (DB Connection: {dbError ? 'Failed' : 'Active'})</span>
           <button onClick={handleExportCSV} className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-200 underline underline-offset-4 py-1 px-2 rounded transition-colors"><Download className="w-3.5 h-3.5" /><span>Export current list to CSV (Excel)</span></button>
         </footer>
       </main>
@@ -806,3 +806,5 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
