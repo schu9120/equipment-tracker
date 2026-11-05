@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   Snowflake,
   Plus,
@@ -63,6 +63,7 @@ const PRIORITY_STYLES = {
 export default function App() {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState(null);
   
   const [filterMode, setFilterMode] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,7 +123,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error fetching equipment:', error.message);
-      showToast('Error loading data from database.');
+      setDbError(error.message);
     } finally {
       setLoading(false);
     }
@@ -387,6 +388,24 @@ export default function App() {
 
   if (loading) {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Loading equipment from database...</div>;
+  }
+
+  if (dbError) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-8 max-w-lg shadow-2xl">
+          <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-100 mb-2">Database Connection Error</h2>
+          <p className="text-slate-300 mb-4 text-sm">Supabase blocked the connection and returned this exact error:</p>
+          <code className="block bg-slate-950 text-rose-400 p-4 rounded-lg border border-rose-900/50 text-sm font-mono whitespace-pre-wrap break-words text-left">
+            {dbError}
+          </code>
+          <p className="text-slate-400 text-sm mt-6">
+            Copy and paste this error to me so we can fix the exact issue!
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -787,5 +806,3 @@ export default function App() {
         </div>
       )}
     </div>
-  );
-}
