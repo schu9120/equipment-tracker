@@ -18,9 +18,14 @@ import {
 // ==========================================
 // 1. PASTE YOUR SUPABASE KEYS HERE
 // ==========================================
-const supabaseUrl = 'https://rscxaqhszdffrddqdcij.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzY3hhcWhzemRmZnJkZHFkY2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4MjMxNTYsImV4cCI6MjEwOTM5OTE1Nn0.gnHcOyWsOG2aWFPRHevtBVheQNvfibSqaR3Xd4O6zMY';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const rawUrl = 'https://rscxaqhszdffrddqdcij.supabase.co/rest/v1/';
+const rawKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzY3hhcWhzemRmZnJkZHFkY2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4MjMxNTYsImV4cCI6MjEwOTM5OTE1Nn0.gnHcOyWsOG2aWFPRHevtBVheQNvfibSqaR3Xd4O6zMY';
+
+// Auto-cleaner: Fixes common copy-paste issues (removes extra spaces, trailing slashes, or /rest/v1 paths)
+const cleanUrl = rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const cleanKey = rawKey.trim();
+
+const supabase = createClient(cleanUrl, cleanKey);
 
 const STATUS_STYLES = {
   Ready: {
@@ -84,8 +89,6 @@ export default function App() {
 
   const [updateNoteText, setUpdateNoteText] = useState('');
   const [editIssueText, setEditIssueText] = useState('');
-  
-  // New state to hold history for the currently editing unit
   const [editingHistory, setEditingHistory] = useState([]);
 
   useEffect(() => {
@@ -101,29 +104,28 @@ export default function App() {
         
       if (error) throw error;
       
-      // Map database columns to app state properties
-      const formattedData = data.map(item => ({
-        id: item.id,
-        dept: item.dept,
-        model: item.model,
-        aka: item.aka,
-        snowType: item.snow_type,
-        status: item.status,
-        priority: item.priority,
-        preparedForWinter: item.prepared_for_winter,
-        issue: item.issue,
-        reportedBy: item.reported_by,
-        shopNote: item.shop_note
+      const formattedData = (data || []).map(item => ({
+        id: String(item.id),
+        dept: item.dept || '',
+        model: item.model || '',
+        aka: item.aka || '',
+        snowType: item.snow_type || '',
+        status: item.status || 'Ready',
+        priority: item.priority || 'None',
+        preparedForWinter: Boolean(item.prepared_for_winter),
+        issue: item.issue || '',
+        reportedBy: item.reported_by || '',
+        shopNote: item.shop_note || ''
       }));
       
       setEquipment(formattedData);
       
       if (formattedData.length > 0 && !reportForm.unitId) {
-         setReportForm(prev => ({ ...prev, unitId: formattedData[0].id }));
+        setReportForm(prev => ({ ...prev, unitId: formattedData[0].id }));
       }
     } catch (error) {
       console.error('Error fetching equipment:', error.message);
-      setDbError(error.message);
+      setDbError(error.message || 'Unknown database connection error');
     } finally {
       setLoading(false);
     }
@@ -221,7 +223,6 @@ export default function App() {
     setEditIssueText(unit.issue || '');
     setUpdateNoteText('');
     
-    // Fetch history for this unit
     const { data } = await supabase
       .from('equipment_history')
       .select('*')
@@ -244,11 +245,9 @@ export default function App() {
     
     const newState = !unit.preparedForWinter;
     
-    // Update local state immediately for snappy UI
     setEquipment(prev => prev.map(u => u.id === unitId ? { ...u, preparedForWinter: newState } : u));
     showToast(newState ? `#${unitId} marked Prepared for Winter` : `#${unitId} marked Needs Winter Prep`);
 
-    // Update DB
     await supabase.from('equipment').update({ prepared_for_winter: newState }).eq('id', unitId);
     await logHistory(unitId, newState ? 'Marked Prepared for Winter.' : 'Marked Needs Winter Prep.');
   };
@@ -267,7 +266,6 @@ export default function App() {
       if (!unit.reportedBy) updates.reported_by = `Logged ${getShortDate()}`;
     }
 
-    // Update Local
     setEquipment(prev => prev.map(u => {
       if (u.id !== unitId) return u;
       return { 
@@ -281,7 +279,6 @@ export default function App() {
     }));
     showToast(`Updated #${unitId} status to ${newStatus}`);
 
-    // Update DB
     await supabase.from('equipment').update(updates).eq('id', unitId);
     await logHistory(unitId, newStatus === 'Ready' ? 'Marked Repaired & Ready for service.' : `Status changed to "${newStatus}".`);
   };
@@ -311,7 +308,6 @@ export default function App() {
       shop_note: ''
     };
 
-    // Local update
     setEquipment(prev => prev.map(u => {
       if (u.id !== reportForm.unitId) return u;
       return {
@@ -329,7 +325,6 @@ export default function App() {
     setReportForm(prev => ({ ...prev, issue: '' }));
     showToast(`Reported issue for #${reportForm.unitId}`);
 
-    // DB update
     await supabase.from('equipment').update(updates).eq('id', reportForm.unitId);
     await logHistory(reportForm.unitId, `Issue reported by ${reporter} (${reportForm.usability}, ${reportForm.priority}): ${reportForm.issue.trim()}`);
   };
@@ -400,9 +395,9 @@ export default function App() {
           <code className="block bg-slate-950 text-rose-400 p-4 rounded-lg border border-rose-900/50 text-sm font-mono whitespace-pre-wrap break-words text-left">
             {dbError}
           </code>
-          <p className="text-slate-400 text-sm mt-6">
-            Copy and paste this error to me so we can fix the exact issue!
-          </p>
+          <div className="mt-4 p-3 bg-slate-900 rounded-lg text-left text-xs text-slate-400 font-mono">
+            <div>Cleaned URL used: {cleanUrl}</div>
+          </div>
         </div>
       </div>
     );
