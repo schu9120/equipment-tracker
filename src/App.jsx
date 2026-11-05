@@ -18,7 +18,7 @@ import {
 // ==========================================
 // 1. PASTE YOUR SUPABASE KEYS HERE
 // ==========================================
-const supabaseUrl = 'https://rscxaqhszdffrddqdcij.supabase.co/rest/v1/';
+const supabaseUrl = 'https://rscxaqhszdffrddqdcij.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzY3hhcWhzemRmZnJkZHFkY2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4MjMxNTYsImV4cCI6MjEwOTM5OTE1Nn0.gnHcOyWsOG2aWFPRHevtBVheQNvfibSqaR3Xd4O6zMY';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
