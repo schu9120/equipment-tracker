@@ -12,7 +12,8 @@ import {
   X,
   MessageSquare,
   ArrowUpDown,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 
 // ==========================================
@@ -149,6 +150,21 @@ export default function App() {
       ]);
     } catch (error) {
       console.error('Error logging history:', error);
+    }
+  };
+
+  const handleDeleteHistoryItem = async (historyId) => {
+    setEditingHistory((prev) => prev.filter((item) => item.id !== historyId));
+    try {
+      const { error } = await supabase
+        .from('equipment_history')
+        .delete()
+        .eq('id', historyId);
+      if (error) throw error;
+      showToast('Deleted log entry');
+    } catch (error) {
+      console.error('Error deleting history item:', error);
+      showToast('Error deleting log entry');
     }
   };
 
@@ -363,13 +379,62 @@ export default function App() {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Equipment #','Nickname','Department','Make / Model','Snow Equipment','Status','Prepared for Winter','Priority','Reported Issue','Reported By','Latest Shop / Status Note'];
-    const rows = displayedEquipment.map(u => [
-      `#${u.id}`, u.aka, u.dept, u.model, u.snowType, u.status, u.preparedForWinter ? 'Yes' : 'No',
-      u.status === 'Ready' ? '' : u.priority, u.issue, u.reportedBy, u.shopNote
+  const handleExportCSV = async () => {
+    let historyByUnit = {};
+    try {
+      const { data: allHistory } = await supabase
+        .from('equipment_history')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (allHistory) {
+        allHistory.forEach((h) => {
+          const d = new Date(h.created_at).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          });
+          const entry = `[${d}] ${h.log_text}`;
+          if (!historyByUnit[h.unit_id]) historyByUnit[h.unit_id] = [];
+          historyByUnit[h.unit_id].push(entry);
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching history for CSV:', err);
+    }
+
+    const headers = [
+      'Equipment #',
+      'Nickname',
+      'Department',
+      'Make / Model',
+      'Snow Equipment',
+      'Status',
+      'Prepared for Winter',
+      'Priority',
+      'Reported Issue',
+      'Reported By',
+      'Latest Shop / Status Note',
+      'Activity Log History'
+    ];
+    const rows = displayedEquipment.map((u) => [
+      `#${u.id}`,
+      u.aka,
+      u.dept,
+      u.model,
+      u.snowType,
+      u.status,
+      u.preparedForWinter ? 'Yes' : 'No',
+      u.status === 'Ready' ? '' : u.priority,
+      u.issue,
+      u.reportedBy,
+      u.shopNote,
+      (historyByUnit[u.id] || []).join(' | ')
     ]);
-    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -378,7 +443,7 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Downloaded CSV spreadsheet');
+    showToast('Downloaded CSV spreadsheet with activity logs');
   };
 
   if (loading) {
@@ -780,12 +845,22 @@ export default function App() {
 
               {editingHistory.length > 0 && (
                 <div className="pt-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Recent DB History</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Recent Activity Log</div>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {editingHistory.map(item => (
-                      <div key={item.id} className="text-xs bg-slate-950 border border-slate-800 rounded-lg p-2.5">
-                        <div className="font-semibold text-slate-400 mb-0.5">{item.date}</div>
-                        <div className="text-slate-200">{item.text}</div>
+                      <div key={item.id} className="text-xs bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-slate-400 mb-0.5">{item.date}</div>
+                          <div className="text-slate-200">{item.text}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHistoryItem(item.id)}
+                          title="Delete log entry"
+                          className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-900 rounded transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
