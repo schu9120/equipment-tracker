@@ -141,9 +141,11 @@ export default function App() {
     // 1. Initial load
     fetchEquipment();
 
-    // 2. Silent background auto-refresh every 15 seconds
+    // 2. Smart background auto-refresh: Only polls when the tab is actively visible
     const intervalId = setInterval(() => {
-      fetchEquipment(false);
+      if (document.visibilityState === 'visible') {
+        fetchEquipment(false);
+      }
     }, AUTO_REFRESH_INTERVAL);
 
     // 3. Instant refresh whenever the user switches back to this browser tab or wakes their phone
