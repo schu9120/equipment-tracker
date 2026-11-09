@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Snowflake,
@@ -13,7 +13,8 @@ import {
   MessageSquare,
   ArrowUpDown,
   Check,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 
 // ==========================================
@@ -27,6 +28,9 @@ const cleanUrl = rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
 const cleanKey = rawKey.trim();
 
 const supabase = createClient(cleanUrl, cleanKey);
+
+// Auto-refresh interval in milliseconds (15000 = 15 seconds)
+const AUTO_REFRESH_INTERVAL = 15000;
 
 const STATUS_STYLES = {
   Ready: {
@@ -69,6 +73,8 @@ const PRIORITY_STYLES = {
 export default function App() {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState(null);
   const [dbError, setDbError] = useState(null);
   
   const [filterMode, setFilterMode] = useState('ALL');
@@ -92,11 +98,8 @@ export default function App() {
   const [editIssueText, setEditIssueText] = useState('');
   const [editingHistory, setEditingHistory] = useState([]);
 
-  useEffect(() => {
-    fetchEquipment();
-  }, []);
-
-  const fetchEquipment = async () => {
+  const fetchEquipment = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setIsSyncing(true);
     try {
       const { data, error } = await supabase
         .from('equipment')
@@ -120,17 +123,53 @@ export default function App() {
       }));
       
       setEquipment(formattedData);
+      setLastSynced(new Date());
       
-      if (formattedData.length > 0 && !reportForm.unitId) {
-        setReportForm(prev => ({ ...prev, unitId: formattedData[0].id }));
+      if (formattedData.length > 0) {
+        setReportForm(prev => prev.unitId ? prev : { ...prev, unitId: formattedData[0].id });
       }
     } catch (error) {
       console.error('Error fetching equipment:', error.message);
       setDbError(error.message || 'Unknown database connection error');
     } finally {
       setLoading(false);
+      if (showSpinner) setIsSyncing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // 1. Initial load
+    fetchEquipment();
+
+    // 2. Silent background auto-refresh every 15 seconds
+    const intervalId = setInterval(() => {
+      fetchEquipment(false);
+    }, AUTO_REFRESH_INTERVAL);
+
+    // 3. Instant refresh whenever the user switches back to this browser tab or wakes their phone
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchEquipment(false);
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    // 4. Optional Realtime listener (if enabled in Supabase)
+    const channel = supabase
+      .channel('equipment-live-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment' }, () => {
+        fetchEquipment(false);
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchEquipment]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -489,19 +528,36 @@ export default function App() {
               <h1 className="text-lg sm:text-2xl font-bold text-slate-100 tracking-tight truncate">
                 Equipment Tracker
               </h1>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                Snow Equipment Status &amp; Repair List (Live Sync)
+              <p className="text-xs text-slate-400 hidden sm:flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Auto-syncs every 15s</span>
+                {lastSynced && (
+                  <span>
+                    • Last synced {lastSynced.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => setIsReportOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors shrink-0 print:hidden"
-          >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-            <span>Report Issue</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0 print:hidden">
+            <button
+              onClick={() => fetchEquipment(true)}
+              title="Refresh data now"
+              className="flex items-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs sm:text-sm transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 text-sky-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden md:inline">Sync</span>
+            </button>
+
+            <button
+              onClick={() => setIsReportOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+              <span>Report Issue</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -713,7 +769,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="pt-4 pb-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 print:hidden">
-          <span>Showing {displayedEquipment.length} of {equipment.length} units (DB Connection: {dbError ? 'Failed' : 'Active'})</span>
+          <span>Showing {displayedEquipment.length} of {equipment.length} units (Auto-Sync: Active)</span>
           <button onClick={handleExportCSV} className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-200 underline underline-offset-4 py-1 px-2 rounded transition-colors"><Download className="w-3.5 h-3.5" /><span>Export current list to CSV (Excel)</span></button>
         </footer>
       </main>
