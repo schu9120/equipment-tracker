@@ -29,8 +29,8 @@ const cleanKey = rawKey.trim();
 
 const supabase = createClient(cleanUrl, cleanKey);
 
-// Auto-refresh interval in milliseconds (15000 = 15 seconds)
-const AUTO_REFRESH_INTERVAL = 15000;
+// Auto-refresh interval in milliseconds (300000 = 5 minutes)
+const AUTO_REFRESH_INTERVAL = 300000;
 
 const STATUS_STYLES = {
   Ready: {
@@ -141,7 +141,7 @@ export default function App() {
     // 1. Initial load
     fetchEquipment();
 
-    // 2. Smart background auto-refresh: Only polls when the tab is actively visible
+    // 2. Smart background auto-refresh: Only polls every 5 minutes when the tab is actively visible
     const intervalId = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchEquipment(false);
@@ -532,10 +532,10 @@ export default function App() {
               </h1>
               <p className="text-xs text-slate-400 hidden sm:flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Auto-syncs every 15s</span>
+                <span>Auto-syncs every 5m</span>
                 {lastSynced && (
                   <span>
-                    • Last synced {lastSynced.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+                    • Last synced {lastSynced.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 )}
               </p>
@@ -771,7 +771,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="pt-4 pb-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 print:hidden">
-          <span>Showing {displayedEquipment.length} of {equipment.length} units (Auto-Sync: Active)</span>
+          <span>Showing {displayedEquipment.length} of {equipment.length} units (Auto-Sync: 5m)</span>
           <button onClick={handleExportCSV} className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-200 underline underline-offset-4 py-1 px-2 rounded transition-colors"><Download className="w-3.5 h-3.5" /><span>Export current list to CSV (Excel)</span></button>
         </footer>
       </main>
